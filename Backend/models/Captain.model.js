@@ -28,7 +28,7 @@ const captainSchema = new mongoose.Schema({
     password:{
         type:String,
         required:true,
-        minlength:[6,"Password must be at least 8 characters long"],
+        minlength:[6,"Password must be at least 6 characters long"],
         select:false,
     },
     socketId:{
@@ -60,18 +60,23 @@ const captainSchema = new mongoose.Schema({
             required: true,
             enum: ['car', 'motorcycle', 'auto'],
         },
-        location:{
-            lat:{
-                type: Number,
-            },
-            long:{
-                type: Number,
-            }
+    },
+    location: {
+        type: {
+            type: String,
+            enum: ['Point'],
+            default: 'Point'
+        },
+        coordinates: {
+            type: [Number], // [longitude, latitude]
+            required: true
         }
     }
 
 });
 
+
+captainSchema.index({ location: '2dsphere' });
 
 
 captainSchema.methods.generateAuthToken = function(){
@@ -91,3 +96,30 @@ captainSchema.statics.hashPassword = async function(password){
 const captainModel = mongoose.model('captain' , captainSchema)
 
 module.exports = captainModel;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // location:{
+    //     ltd:{
+    //         type: Number,
+    //     },
+    //     lng:{
+    //         type: Number,
+    //     }
+    // }

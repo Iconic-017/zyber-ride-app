@@ -2,6 +2,7 @@ const captainModel = require('../models/Captain.model');
 const captainService = require('../services/captain.service');
 const { validationResult } = require('express-validator');
 const BlacklistToken = require('../models/BlacklistToken.model');
+const Ride = require('../models/ride.model.js')
 
 
 
@@ -100,5 +101,26 @@ module.exports.logoutCaptain = async (req, res, next) => {
     return res.status(200).json({ message: "Logout successful" });
   } catch (error) {
     return res.status(500).json({ message: "Internal server error" });
+  }
+}
+
+
+module.exports.updateCaptainStatus = async (req , res , next ) => {
+  try{
+
+    const { status } = req.body;
+
+    if (!['active', 'inactive'].includes(status)) {
+      return res.status(400).json({ message: "Invalid status value" });
+    }
+
+    req.captain.status = status;
+    await req.captain.save();
+
+    res.status(200).json({ message: "Status updated successfully", status: req.captain.status });
+
+  } catch(error){
+    console.log(error)
+    next(error);
   }
 }

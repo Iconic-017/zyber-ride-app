@@ -1,4 +1,5 @@
 const axios = require('axios');
+const captainModel = require('../models/Captain.model.js');
 
 module.exports.getAddressCoordinate = async (address) => {
     try {
@@ -14,8 +15,9 @@ module.exports.getAddressCoordinate = async (address) => {
         ) {
             const location = response.data.results[0].geometry.location;
             return {
-                ltd: location.lat,
-                lng: location.lng
+                lat: location.lat,
+                lng: location.lng,
+                ltd: location.lat // backwards compatibility
             };
         } else {
             throw new Error('Unable to find coordinates for the given address.');
@@ -82,3 +84,25 @@ module.exports.getAutoCompleteSuggestion = async (input) => {
         throw new Error(`Error fetching autocomplete suggestions: ${error.message}`);
     }
 };
+
+
+module.exports.getCaptainsInTheRadius = async (latOrLtd , lng , radius) => {
+    const latitude = typeof latOrLtd === 'number' ? latOrLtd : parseFloat(latOrLtd);
+    const longitude = typeof lng === 'number' ? lng : parseFloat(lng);
+
+    if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
+        throw new Error('Valid latitude and longitude are required to search captains');
+    }
+
+    const captains = await captainModel.find({
+        location: {
+           $geoWithin : {
+            $centerSphere : [[longitude , latitude] , radius / 6371], // radius in km
+            // $centerSphere : [[long , lat] , radius / 3963.2], //radius in miles
+           }
+        }
+    });
+
+    return captains;
+
+}

@@ -37,8 +37,7 @@ router.post( '/register', [
 );
 
 
-router.post(
-  '/login',
+router.post('/login',
   [
     body('email')
       .isEmail()
@@ -50,11 +49,11 @@ router.post(
   captainController.loginCaptain
 );
 
-
 router.get('/profile' , authCaptain , captainController.getCaptainProfile);
 
-router.get('/logout' , authCaptain , captainController.logoutCaptain)
+router.get('/logout' , authCaptain , captainController.logoutCaptain);
 
+router.put('/status' , authCaptain , captainController.updateCaptainStatus);
 
 
 
