@@ -75,7 +75,7 @@ const CaptainLogin = () => {
           transition={{ duration: 0.6 }}
         >
           <h2 className={`text-2xl font-bold mb-6 text-center ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-            Captain Login
+            Captain
           </h2>
 
           <form className="space-y-4" onSubmit={handleSubmit}>

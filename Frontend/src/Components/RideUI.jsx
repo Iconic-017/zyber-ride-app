@@ -203,7 +203,7 @@ const vehicleTemplates = [
     description: 'Quick and affordable bike rides',
     eta: '2:40pm',
     time: '3 min',
-    icon: 'https://www.uber-assets.com/image/upload/f_auto,q_auto:eco,c_fill,h_1429,w_2144/v1649231046/assets/84/ad96b0-f8d6-41a7-babf-816237fe530d/original/Uber_Moto_Orange_696x464_pixels_Tablet.png',
+    icon: 'https://img.autocarpro.in/autocarpro/4d3ef0c9-c75e-46a3-af25-fab216e0bfe8_Untitled.jpg?w=750&h=490&q=75&c=1',
     tag: null,
     seat: 1
   },
@@ -213,7 +213,7 @@ const vehicleTemplates = [
     description: 'Affordable auto rickshaw rides',
     eta: '2:38pm',
     time: '2 min',
-    icon: 'https://www.uber-assets.com/image/upload/f_auto,q_auto:eco,c_fill,h_1429,w_2144/v1648431773/assets/1d/db8c56-0204-4ce4-81ce-56a11a07fe98/original/Uber_Auto_558x372_pixels_Desktop.png',
+    icon: 'https://clipart-library.com/2023/Uber_Auto_312x208_pixels_Mobile.png',
     tag: null,
     seat: 3
   }

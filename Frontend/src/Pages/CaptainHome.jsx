@@ -1,176 +1,279 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Switch } from '@headlessui/react';
-import { motion} from 'framer-motion';
-import { AlertTriangle} from 'lucide-react';
-
+import { motion } from 'framer-motion';
 import CaptainInfoCard, { CaptainStats } from '../Components/CaptainInfoCard';
 import RidePopUp from '../Components/RidePopUP';
-import ConfirmRidePopUP from '../Components/ConfirmRidePopUP';
 import CaptainRiding from './CaptainRiding';
-
+import { CaptainDataContext } from '../context/CaptainContext';
+import { SocketContext } from '../context/SocketContext';
+import axios from 'axios';
 
 const CaptainHome = () => {
   const [isOnline, setIsOnline] = useState(false);
-  const [showPopup, setShowPopup] = useState(false);
-  
-  const [selectedRide, setSelectedRide] = useState(null);
-  const [showConfirmRide , setShowConfirmRide] = useState(false)
-
+  const [ridePopup, setRidePopup] = useState(null);
   const [ongoingRide, setOngoingRide] = useState(false);
+  const [currentRide, setCurrentRide] = useState(null);
+  const [otpVerified, setOtpVerified] = useState(false);
 
+  const { captain, loading } = useContext(CaptainDataContext);
+  const { socket, emitTo } = useContext(SocketContext);
 
+  // 1️⃣ Register captain on socket
   useEffect(() => {
-    if (isOnline) {
-      const timer = setTimeout(() => setShowPopup(true), 1000); // 1s delay
-      return () => clearTimeout(timer);
-    } else {
-      setShowPopup(false); // hide pop-up if offline
+    if (!loading && captain?._id) {
+      emitTo('register-user', { userId: captain._id, userType: 'captain' });
+      console.log('[socket] captain registered:', captain._id);
     }
-  }, [isOnline]);
+  }, [captain, loading, emitTo]);
 
+  // // 2️⃣ Update location every 10s
+  // useEffect(() => {
+  //   if (!captain?._id) return;
+  //   const updateLocation = () => {
+  //     if (navigator.geolocation) {
+  //       navigator.geolocation.getCurrentPosition(
+  //         (pos) =>
+  //           emitTo('update-location-captain', {
+  //             userId: captain._id,
+  //             lat: pos.coords.latitude,
+  //             lng: pos.coords.longitude,
+  //           }),
+  //         (err) => console.error(err),
+  //         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  //       );
+  //     }
+  //   };
+  //   updateLocation();
+  //   const interval = setInterval(updateLocation, 10000);
+  //   return () => clearInterval(interval);
+  // }, [captain, emitTo]);
+
+//   useEffect(() => {
+//   if (!captain?._id) return;
+
+//   let watchId;
+
+//   if (navigator.geolocation) {
+//     watchId = navigator.geolocation.watchPosition(
+//       (pos) => {
+//         emitTo('update-location-captain', {
+//           userId: captain._id,
+//           lat: pos.coords.latitude,
+//           lng: pos.coords.longitude,
+//         });
+//       },
+//       (err) => console.error('Location error:', err),
+//       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+//     );
+//   }
+
+//   return () => {
+//     if (watchId) navigator.geolocation.clearWatch(watchId);
+//   };
+// }, [captain, emitTo]);
+
+useEffect(() => {
+  if (!captain?._id) return;
+
+  let watchId;
+  if (navigator.geolocation) {
+    watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        console.log("📍 Updated live location:", pos.coords);
+        emitTo('update-location-captain', {
+          userId: captain._id,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        });
+      },
+      (err) => console.error("❌ Location error:", err),
+      {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0,
+      }
+    );
+  } else {
+    console.error("❌ Geolocation not supported by browser");
+  }
+
+  return () => {
+    if (watchId) navigator.geolocation.clearWatch(watchId);
+  };
+}, [captain, emitTo]);
+
+
+
+  // 3️⃣ Listen for rides when captain is online
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleNewRide = (ride) => {
+      if (isOnline) {
+        console.log('🚗 New ride received:', ride);
+        setRidePopup(ride);
+      } else {
+        console.log('🛑 Ride ignored because captain is offline.');
+      }
+    };
+
+    socket.on('new-ride', handleNewRide);
+    return () => socket.off('new-ride', handleNewRide);
+  }, [socket, isOnline]);
+
+  // 4️⃣ Handle online/offline toggle
+  const handleToggle = async (checked) => {
+    setIsOnline(checked);
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BASE_URL}/rider/status`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({ status: checked ? 'active' : 'inactive' }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        console.log(`🟢 Captain is now ${data.status}`);
+      } else {
+        console.error('Error:', data.message);
+      }
+    } catch (err) {
+      console.error('Error updating status:', err);
+    }
+  };
+
+  // 5️⃣ Accept ride → confirm + notify user
+  const handleAcceptRide = async (ride) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(
+        `${import.meta.env.VITE_BASE_URL}/rides/confirm`,
+        { rideId: ride._id, captainId: captain._id },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      // Store ride with OTP
+      const confirmedRide = res.data?.ride;
+      if (!confirmedRide?.otp) {
+        alert('Unable to fetch ride OTP. Please retry.');
+        return;
+      }
+
+      const mergedRide = {
+        ...ride,
+        ...confirmedRide,
+      };
+
+      setCurrentRide(mergedRide);
+      setRidePopup(mergedRide);
+      setOtpVerified(false);
+
+      // Notify user
+      emitTo('ride-accepted', {
+        userId: ride.userId,
+        captainDetails: {
+          name: captain.fullName,
+          vehicleNumber: captain.vehicleNumber,
+          phone: captain.phone,
+        },
+        otp: confirmedRide.otp,
+      });
+    } catch (error) {
+      console.error('❌ Error confirming ride:', error);
+    }
+  };
+
+  // 6️⃣ Ignore ride
+  const handleIgnoreRide = () => {
+    console.log('❌ Ride ignored');
+      setRidePopup(null);
+      setCurrentRide(null);
+      setOtpVerified(false);
+  };
+
+  // 7️⃣ OTP verification
+  const handleOtpSubmit = async (rideId, otp) => {
+    try {
+      // compare locally first
+      if (otp !== currentRide?.otp) {
+        alert('Incorrect OTP. Please try again.');
+        return;
+      }
+
+      setOtpVerified(true);
+      setOngoingRide(true);
+      setRidePopup(null);
+    } catch (err) {
+      console.error('❌ Error verifying OTP:', err);
+      alert('Failed to verify OTP. Try again.');
+    }
+  };
+
+  // Render ride page after OTP verified
+  if (ongoingRide && currentRide) {
+    return <CaptainRiding ride={currentRide} />;
+  }
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-gray-100">
-
-      {/* Top header with status */}
-      <div className="flex justify-between items-center px-4 py-3 bg-white shadow-md">
-        <h1 className="text-lg font-bold">{isOnline ? 'Online' : 'Offline'}</h1>
-        <Switch
-          checked={isOnline}
-          onChange={setIsOnline}
-          className={`${
-            isOnline ? 'bg-green-500' : 'bg-gray-300'
-          } relative inline-flex h-6 w-11 items-center rounded-full transition`}
-        >
-          <span
-            className={`${
-              isOnline ? 'translate-x-6' : 'translate-x-1'
-            } inline-block h-4 w-4 transform bg-white rounded-full transition`}
-          />
-        </Switch>
-      </div>
-
-      {/* Map Placeholder (GIF or Static) */}
-      <div className="relative w-full h-[70%]">
-
-        {/* Persistent Notification Area (no height change) */}
-      <div className="h-10 w-full fixed z-10">
-        <motion.div
-          animate={{ opacity: isOnline ? 0 : 1 }}
-          transition={{ duration: 0.4 }}
-          className={`absolute inset-0 flex items-center gap-2 px-4 text-sm bg-orange-400 text-white rounded-b-md ${
-            isOnline ? 'pointer-events-none' : ''
-          }`}
-        >
-          <AlertTriangle className="w-5 h-5" />
-          <span>You are offline! Go online to start accepting jobs.</span>
-        </motion.div>
-      </div>
-
-        <img
-          src="https://static.vecteezy.com/system/resources/thumbnails/010/801/644/small_2x/aerial-clean-top-view-of-the-city-map-with-street-and-river-007-vector.jpg"
-          alt="Map Placeholder"
-          className="w-full h-full object-cover"
-        />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="bg-yellow-400 p-4 rounded-full shadow-lg">
-            <svg
-              className="w-6 h-6 text-white"
-              fill="currentColor"
-              viewBox="0 0 20 20"
+      {loading && <p className="text-center mt-10">Loading captain data...</p>}
+      {!loading && !captain && <p className="text-center mt-10">No captain info found</p>}
+      {!loading && captain && (
+        <>
+          {/* Header */}
+          <div className="flex justify-between items-center px-4 py-3 bg-white shadow-md">
+            <h1 className="text-lg font-bold">{isOnline ? 'Online' : 'Offline'}</h1>
+            <Switch
+              checked={isOnline}
+              onChange={handleToggle}
+              className={`${
+                isOnline ? 'bg-green-500' : 'bg-gray-300'
+              } relative inline-flex h-6 w-11 items-center rounded-full transition`}
             >
-              <path d="M10 20s6-5.686 6-10A6 6 0 004 10c0 4.314 6 10 6 10zM8 10a2 2 0 114 0 2 2 0 01-4 0z" />
-            </svg>
+              <span
+                className={`${
+                  isOnline ? 'translate-x-6' : 'translate-x-1'
+                } inline-block h-4 w-4 transform bg-white rounded-full transition`}
+              />
+            </Switch>
           </div>
-        </div>
-      </div>
 
-      {/* Captain Info + Stats */}
-      <motion.div
-        className="absolute bottom-0 w-full h-[30%] bg-white rounded-t-3xl shadow-xl px-6 py-6"
-        initial={{ y: 100 }}
-        animate={{ y: 0 }}
-        transition={{ type: 'spring', damping: 25 }}
-      >
-        {/* <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-4">
+          {/* Map */}
+          <div className="relative w-full h-[70%]">
             <img
-              src="https://upload.wikimedia.org/wikipedia/commons/0/0c/Prime_Minister_Of_Bharat_Shri_Narendra_Modi_with_Rishabh_Pant.jpg"
-              className="w-17 h-17  rounded-full"
-              alt="Captain"
+              src="https://static.vecteezy.com/system/resources/thumbnails/010/801/644/small_2x/aerial-clean-top-view-of-the-city-map-with-street-and-river-007-vector.jpg"
+              alt="Map"
+              className="w-full h-full object-cover"
             />
-            <div>
-              <p className="font-semibold text-lg">Rishab Pant</p>
-              <p className="text-sm text-gray-500">GOD level</p>
-            </div>
           </div>
-          <div className="text-right">
-            <p className="text-xl font-bold">$31,49,482.50</p>
-            <p className="text-sm text-gray-400">Earned</p>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-3 text-center bg-yellow-400 rounded-xl text-black py-3 font-semibold text-sm">
-          <div className='flex flex-col items-center'>
-            <Timer></Timer>
-            <p className="text-xl">10.2</p>
-            <p className="text-xs font-medium">Hrs Online</p>
-          </div>
-          <div className='flex flex-col items-center'>
-            <Route/>
-            <p className="text-xl">30 KM</p>
-            <p className="text-xs font-medium">Total Distance</p>
-          </div>
-          <div className='flex flex-col items-center'>
-            <Briefcase/>
-            <p className="text-xl">20</p>
-            <p className="text-xs font-medium">Total Jobs</p>
-          </div>
-        </div> */}
+          {/* Captain Info */}
+          <motion.div
+            className="absolute bottom-0 w-full h-[30%] bg-white rounded-t-3xl shadow-xl px-6 py-6"
+            initial={{ y: 100 }}
+            animate={{ y: 0 }}
+            transition={{ type: 'spring', damping: 25 }}
+          >
+            <CaptainInfoCard />
+            <CaptainStats />
+          </motion.div>
 
-      <CaptainInfoCard/>
-
-      <CaptainStats/>
-      </motion.div>
-
-          {/* Rider pop up */}
-      {showPopup && (
-        <div className="absolute top-[70%] left-0 right-0 z-50">
-          <RidePopUp
-          onAccept={(ride) => {
-            console.log("Accepted ride:", ride);
-            setShowPopup(false);           // ✅ hide the popup
-            setSelectedRide(ride);         // ✅ store ride details
-            setShowConfirmRide(true);      // ✅ show confirm ride screen
-          }}
-        />
-        </div>
+          {/* Ride Popup */}
+          {ridePopup && !ongoingRide && (
+            <RidePopUp
+              ride={ridePopup}
+              onAccept={handleAcceptRide}
+              onIgnore={handleIgnoreRide}
+              onOtpSubmit={handleOtpSubmit}
+              otpVerified={otpVerified}
+            />
+          )}
+        </>
       )}
-
-
-      {showConfirmRide && (
-        <ConfirmRidePopUP
-          isVisible={showConfirmRide}
-          ride={selectedRide}
-          onClose={() => setShowConfirmRide(false)}
-          onGoToPickup={() => {
-            setShowConfirmRide(false);
-            setOngoingRide(true); // ✅ show this next
-          }}
-        />
-      )}
-
-      {ongoingRide && (
-        <CaptainRiding
-          isVisible={ongoingRide}
-          onComplete={() => {
-            setOngoingRide(false);
-          }}
-        />
-      )}
-
-
-
     </div>
   );
 };

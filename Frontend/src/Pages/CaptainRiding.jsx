@@ -60,11 +60,6 @@ const CaptainRiding = () => {
 
 
     </>
-
-    
-
-
-
   );
 };
 

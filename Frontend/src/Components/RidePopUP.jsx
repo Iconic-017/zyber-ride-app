@@ -1,106 +1,90 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const sampleRides = [
-  {
-    name: 'Esther Berry',
-    photo: 'https://randomuser.me/api/portraits/women/44.jpg',
-    pickup: '7958 Swift Village',
-    drop: '105 William St, Chicago, US',
-    amount: '$25.00',
-    distance: '2.2 km',
-    tags: ['ApplePay', 'Discount'],
-  },
-  {
-    name: 'Daniel Smith',
-    photo: 'https://randomuser.me/api/portraits/men/32.jpg',
-    pickup: '120 Park Ave',
-    drop: '980 Lincoln Blvd, NY',
-    amount: '$18.75',
-    distance: '3.5 km',
-    tags: ['Promo'],
-  },
-  {
-    name: 'Anna Keller',
-    photo: 'https://randomuser.me/api/portraits/women/68.jpg',
-    pickup: '452 Elm Street',
-    drop: '22 Maple Dr, Texas',
-    amount: '$30.00',
-    distance: '4.1 km',
-    tags: ['Cash', 'First Ride'],
-  },
-];
+const RidePopUp = ({ ride, onAccept, onIgnore, onOtpSubmit, otpVerified }) => {
+  const [accepted, setAccepted] = useState(false);
+  const [otp, setOtp] = useState('');
 
-const RidePopUp = ({ onAccept }) => {
-  const [index, setIndex] = useState(0);
-  const current = sampleRides[index];
+  if (!ride) return null;
 
-  const handleIgnore = () => {
-    setIndex((prev) => (prev + 1) % sampleRides.length);
+  const handleAccept = () => {
+    setAccepted(true);
+    onAccept(ride);
+  };
+
+  const handleOtpVerify = () => {
+    if (otp.trim().length !== 4) return alert('Enter a valid 4-digit OTP');
+    onOtpSubmit(ride._id, otp);
   };
 
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence>
       <motion.div
-        key={index}
-        initial={{ y: 50, opacity: 0 }}
+        initial={{ y: 80, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        exit={{ y: 50, opacity: 0 }}
+        exit={{ y: 80, opacity: 0 }}
         transition={{ type: 'spring', damping: 20 }}
-        className=" w-full h-screen mx-auto bg-white rounded-t-2xl shadow-xl p-4 space-y-4"
+        className="fixed bottom-0 left-0 w-full bg-white rounded-t-2xl shadow-2xl p-4 space-y-3 z-50"
       >
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={current.photo} alt={current.name} className="w-10 h-10 rounded-full" />
-            <div>
-              <p className="font-semibold">{current.name}</p>
-              <div className="flex gap-1 mt-1">
-                {current.tags.map((tag, i) => (
-                  <span
-                    key={i}
-                    className="bg-yellow-300 text-xs text-black px-2 py-0.5 rounded-full"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-            </div>
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-lg font-semibold">
+              {ride.user?.fullname?.firstname || 'New Ride'}
+            </h2>
+            <p className="text-sm text-gray-400">{ride.user?.email}</p>
           </div>
-
-          <div className="text-right">
-            <p className="text-lg font-semibold">{current.amount}</p>
-            <p className="text-sm text-gray-400">{current.distance}</p>
-          </div>
+          <p className="font-bold text-green-600">{ride.fare ? `₹${ride.fare}` : '—'}</p>
         </div>
 
-        {/* Pickup & Drop Info */}
+        {/* Ride Info */}
         <div className="text-sm">
-          <div className="mb-2">
-            <p className="text-gray-400 text-xs font-medium">PICK UP</p>
-            <p className="font-semibold">{current.pickup}</p>
-          </div>
-          <div>
-            <p className="text-gray-400 text-xs font-medium">DROP OFF</p>
-            <p className="font-semibold">{current.drop}</p>
-          </div>
+          <p className="text-gray-400 text-xs font-medium">PICKUP</p>
+          <p className="font-semibold">{ride.pickup}</p>
+
+          {otpVerified ? (
+            <>
+              <p className="text-gray-400 text-xs font-medium mt-2">DROP</p>
+              <p className="font-semibold">{ride.destination}</p>
+            </>
+          ) : (
+            accepted && (
+              <div className="mt-3">
+                <input
+                  type="text"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  placeholder="Enter OTP"
+                  className="w-full border px-3 py-2 rounded-lg outline-none"
+                />
+                <button
+                  onClick={handleOtpVerify}
+                  className="w-full mt-2 bg-blue-500 text-white py-2 rounded-lg font-semibold"
+                >
+                  Verify OTP
+                </button>
+              </div>
+            )
+          )}
         </div>
 
         {/* Buttons */}
-        <div className="flex justify-between items-center pt-2">
-          <button
-            onClick={handleIgnore}
-            className="text-gray-400 bg-gray-600 px-6 py-2 rounded-xl font-medium text-sm"
-          >
-            Ignore
-          </button>
-          <button
-            onClick={() => onAccept(current)}
-            className="bg-green-400 hover:bg-emerald-500 text-black px-6 py-2 rounded-xl font-semibold shadow"
-          >
-            Accept
-          </button>
-        </div>
+        {!accepted && (
+          <div className="flex justify-between pt-2">
+            <button
+              onClick={onIgnore}
+              className="text-gray-500 bg-gray-200 px-6 py-2 rounded-lg font-medium"
+            >
+              Ignore
+            </button>
+            <button
+              onClick={handleAccept}
+              className="bg-green-500 text-white px-6 py-2 rounded-lg font-semibold"
+            >
+              Accept
+            </button>
+          </div>
+        )}
       </motion.div>
     </AnimatePresence>
   );
